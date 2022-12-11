@@ -23,6 +23,11 @@ type receipt_items struct {
 	Price            string `json:"price"`
 }
 
+// receipt items
+type id_response struct {
+	Id string `json:"id"`
+}
+
 // albums slice to seed record album data.
 //
 //	var receipts = []receipt{
@@ -45,6 +50,7 @@ func main() {
 // postRecept adds an receipt from JSON received in the request body.
 func postReceipts(c *gin.Context) {
 	var newReceipt receipt
+	var idResponse id_response
 	uuidWithHyphen := uuid.New()
 	// Call BindJSON to bind the received JSON to
 	// newReceipt.
@@ -52,7 +58,8 @@ func postReceipts(c *gin.Context) {
 		return
 	}
 	receipts[uuidWithHyphen.String()] = newReceipt
-	c.IndentedJSON(http.StatusCreated, newReceipt)
+	idResponse.Id = uuidWithHyphen.String()
+	c.IndentedJSON(http.StatusCreated, idResponse)
 }
 
 // getReceiptByID locates the receipt whose ID value matches the id
