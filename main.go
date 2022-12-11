@@ -2,6 +2,10 @@ package main
 
 import (
 	"net/http"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -28,11 +32,7 @@ type id_response struct {
 	Id string `json:"id"`
 }
 
-// albums slice to seed record album data.
-//
-//	var receipts = []receipt{
-//		{id: "someidhere", retailer: "test", purchaseDate: "2022-01-01", purchaseTime: "13:01", total: "10", items: []receipt_items{{shortDescription: "someitem", price: "10"}}},
-//	}
+// receipt data
 var receipts map[string]receipt
 
 func main() {
@@ -57,9 +57,65 @@ func postReceipts(c *gin.Context) {
 	if err := c.BindJSON(&newReceipt); err != nil {
 		return
 	}
-	receipts[uuidWithHyphen.String()] = newReceipt
+	isreceiptvalid, validationerror := validateReceipt(newReceipt)
+	if isreceiptvalid {
+		receipts[uuidWithHyphen.String()] = newReceipt
+	} else {
+
+		c.IndentedJSON(http.StatusCreated, gin.H{"message": "Validaiton Error: " + validationerror})
+	}
+
 	idResponse.Id = uuidWithHyphen.String()
 	c.IndentedJSON(http.StatusCreated, idResponse)
+}
+
+// validate the request
+func validateReceipt(pReceipt receipt) (bool, string) {
+	var itemnumber int64 = 0
+	var itemnumber_str string = ""
+	if strings.TrimSpace(pReceipt.PurchaseDate) == "" {
+		return false, "No Purchase Date Provided"
+	} else if strings.TrimSpace(pReceipt.PurchaseTime) == "" {
+		return false, "No Purchase Time Provided"
+	} else if strings.TrimSpace(pReceipt.Retailer) == "" {
+		return false, "No Retailer Provided"
+	} else if strings.TrimSpace(pReceipt.Total) == "" {
+		return false, "No Total Provided"
+	}
+	for _, item := range pReceipt.Items {
+		itemnumber++
+		itemnumber_str = "Item Number " + strconv.FormatInt(int64(itemnumber), 10)
+		if strings.TrimSpace(item.Price) == "" {
+			return false, itemnumber_str + " - No Price Provided"
+
+		} else if strings.TrimSpace(item.ShortDescription) == "" {
+			return false, itemnumber_str + " - No Short Description Provided"
+		}
+		_, err := strconv.ParseFloat(item.Price, 32)
+		if err != nil {
+			return false, itemnumber_str + " - Invalid Price Amount"
+		}
+	}
+	_, err := regexp.MatchString("^[0-9]{4}-(1[0-2]|0[1-9])-(3[01]|[12][0-9]|0[1-9])$", pReceipt.PurchaseDate)
+	if err != nil {
+		return false, "Invalid Purchase Date - Not In Expected Format YYYY-MM-DD"
+	}
+	_, err = time.Parse("2022-01-22", pReceipt.PurchaseDate)
+	if err != nil {
+		return false, "Invalid Purchase Date"
+	}
+
+	_, err = regexp.MatchString("^((0|1)[0-9]|2[0-3]|):((0|1|2|3|4|5)[0-9])$", pReceipt.PurchaseTime)
+	if err != nil {
+		return false, "Invalid Purchase Time - Not In Expected 24-hour Format HH:MI"
+	}
+	_, err = strconv.ParseFloat(pReceipt.Total, 32)
+
+	if err != nil {
+		return false, "Invalid Total"
+
+	}
+	return true, ""
 }
 
 // getReceiptByID locates the receipt whose ID value matches the id
