@@ -168,7 +168,7 @@ func computePoints(pReceipt receipt) int {
 	}
 	for _, item := range pReceipt.Items {
 		totalVal = 0
-		totalVal, err = strconv.ParseFloat(item.Price, 64)
+		totalVal, _ = strconv.ParseFloat(item.Price, 64)
 
 		//price*0.2 rounded up if price description length is a multiple of 3
 		if math.Mod(float64(len(strings.TrimSpace(item.ShortDescription))), 3) == 0 {
