@@ -43,6 +43,7 @@ var receipts map[string]receipt
 
 func main() {
 	receipts = make(map[string]receipt)
+	//test data
 	receipts["someidhere"] = receipt{
 		Retailer: "test", PurchaseDate: "2022-01-01", PurchaseTime: "13:01", Total: "10", Items: []receipt_items{{ShortDescription: "someitem", Price: "10"}},
 	}
@@ -70,7 +71,7 @@ func getReceiptByID(c *gin.Context) {
 	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "receipt not found"})
 }
 
-// postRecept adds an receipt from JSON received in the request body.
+// postReceipt adds an receipt from JSON received in the request body.
 func postReceipts(c *gin.Context) {
 	var newReceipt receipt
 	var idResponse id_response
@@ -82,10 +83,11 @@ func postReceipts(c *gin.Context) {
 	}
 	isreceiptvalid, validationerror := validateReceipt(newReceipt)
 	if isreceiptvalid {
+		//computes the points and stores it with the receipt
 		newReceipt.points = strconv.FormatInt(int64(computePoints(newReceipt)), 10)
 		receipts[uuidWithHyphen.String()] = newReceipt
 	} else {
-
+		//if a validation error occurs let them know what is invalid
 		c.IndentedJSON(http.StatusCreated, gin.H{"message": "Validaiton Error: " + validationerror})
 		return
 	}
@@ -94,7 +96,7 @@ func postReceipts(c *gin.Context) {
 	c.IndentedJSON(http.StatusCreated, idResponse)
 }
 
-// validate the request
+// validate submission, checks for invalid data
 func validateReceipt(pReceipt receipt) (bool, string) {
 	var itemnumber int64 = 0
 	var itemnumber_str string = ""
@@ -142,19 +144,24 @@ func validateReceipt(pReceipt receipt) (bool, string) {
 	return true, ""
 }
 
+// computes the points of a receipt
 func computePoints(pReceipt receipt) int {
 	var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9]+`)
 	var returntotal int = 0
 	returntotal = 0
+	//1 point per alpha numeric character
 	returntotal += len(nonAlphanumericRegex.ReplaceAllString(pReceipt.Retailer, ""))
 	totalVal, err := strconv.ParseFloat(pReceipt.Total, 64)
 	if err == nil {
+		//50 points if total is an even dollar amount
 		if totalVal == math.Round(totalVal) {
 			returntotal += 50
 		}
+		//25 points if total is a multiple of 0.25
 		if totalVal/0.25 == math.Round(totalVal/0.25) {
 			returntotal += 25
 		}
+		//5 points per pair of items
 		NumberOfPairItems := math.Floor(float64(len(pReceipt.Items)) / 2)
 		returntotal += 5 * int(NumberOfPairItems)
 
@@ -162,12 +169,15 @@ func computePoints(pReceipt receipt) int {
 	for _, item := range pReceipt.Items {
 		totalVal = 0
 		totalVal, err = strconv.ParseFloat(item.Price, 64)
+
+		//price*0.2 rounded up if price description length is a multiple of 3
 		if math.Mod(float64(len(strings.TrimSpace(item.ShortDescription))), 3) == 0 {
 
 			returntotal += int(math.Ceil(totalVal * 0.2))
 
 		}
 	}
+	//6 points if the purchase date is an odd number
 	purchase_day_unit_digit := pReceipt.PurchaseDate[9:10]
 	if purchase_day_unit_digit == "1" ||
 		purchase_day_unit_digit == "3" ||
@@ -176,6 +186,7 @@ func computePoints(pReceipt receipt) int {
 		purchase_day_unit_digit == "9" {
 		returntotal += 6
 	}
+	//10 points if purchase time is after 2pm and before 4pm
 	if (pReceipt.PurchaseTime[0:2] == "14" || pReceipt.PurchaseTime[0:2] == "15") &&
 		(pReceipt.PurchaseTime != "14:00") {
 		returntotal += 10
