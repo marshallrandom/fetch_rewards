@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -32,6 +33,11 @@ type id_response struct {
 	Id string `json:"id"`
 }
 
+// point respons
+type point_response struct {
+	Points int `json:"points"`
+}
+
 // receipt data
 var receipts map[string]receipt
 
@@ -47,6 +53,23 @@ func main() {
 	router.Run("localhost:8080")
 }
 
+// getReceiptByID locates the receipt whose ID value matches the id
+// parameter sent by the client, then returns that receipt as a response.
+func getReceiptByID(c *gin.Context) {
+	id := c.Param("id")
+	var returnpoints point_response
+
+	val, ok := receipts[id]
+
+	// If the key exists
+	if ok {
+		returnpoints.Points, _ = strconv.Atoi(val.points)
+		c.IndentedJSON(http.StatusOK, returnpoints)
+		return
+	}
+	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "receipt not found"})
+}
+
 // postRecept adds an receipt from JSON received in the request body.
 func postReceipts(c *gin.Context) {
 	var newReceipt receipt
@@ -59,6 +82,7 @@ func postReceipts(c *gin.Context) {
 	}
 	isreceiptvalid, validationerror := validateReceipt(newReceipt)
 	if isreceiptvalid {
+		newReceipt.points = strconv.FormatInt(int64(computePoints(newReceipt)), 10)
 		receipts[uuidWithHyphen.String()] = newReceipt
 	} else {
 
@@ -118,16 +142,44 @@ func validateReceipt(pReceipt receipt) (bool, string) {
 	return true, ""
 }
 
-// getReceiptByID locates the receipt whose ID value matches the id
-// parameter sent by the client, then returns that receipt as a response.
-func getReceiptByID(c *gin.Context) {
-	id := c.Param("id")
+func computePoints(pReceipt receipt) int {
+	var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z0-9]+`)
+	var returntotal int = 0
+	returntotal = 0
+	returntotal += len(nonAlphanumericRegex.ReplaceAllString(pReceipt.Retailer, ""))
+	totalVal, err := strconv.ParseFloat(pReceipt.Total, 64)
+	if err == nil {
+		if totalVal == math.Round(totalVal) {
+			returntotal += 50
+		}
+		if totalVal/0.25 == math.Round(totalVal/0.25) {
+			returntotal += 25
+		}
+		NumberOfPairItems := math.Floor(float64(len(pReceipt.Items)) / 2)
+		returntotal += 5 * int(NumberOfPairItems)
 
-	val, ok := receipts[id]
-	// If the key exists
-	if ok {
-		c.IndentedJSON(http.StatusOK, val)
-		return
 	}
-	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "receipt not found"})
+	for _, item := range pReceipt.Items {
+		totalVal = 0
+		totalVal, err = strconv.ParseFloat(item.Price, 64)
+		if math.Mod(float64(len(strings.TrimSpace(item.ShortDescription))), 3) == 0 {
+
+			returntotal += int(math.Ceil(totalVal * 0.2))
+
+		}
+	}
+	purchase_day_unit_digit := pReceipt.PurchaseDate[9:10]
+	if purchase_day_unit_digit == "1" ||
+		purchase_day_unit_digit == "3" ||
+		purchase_day_unit_digit == "5" ||
+		purchase_day_unit_digit == "7" ||
+		purchase_day_unit_digit == "9" {
+		returntotal += 6
+	}
+	if (pReceipt.PurchaseTime[0:2] == "14" || pReceipt.PurchaseTime[0:2] == "15") &&
+		(pReceipt.PurchaseTime != "14:00") {
+		returntotal += 10
+	}
+
+	return returntotal
 }
