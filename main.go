@@ -63,6 +63,7 @@ func postReceipts(c *gin.Context) {
 	} else {
 
 		c.IndentedJSON(http.StatusCreated, gin.H{"message": "Validaiton Error: " + validationerror})
+		return
 	}
 
 	idResponse.Id = uuidWithHyphen.String()
@@ -93,21 +94,20 @@ func validateReceipt(pReceipt receipt) (bool, string) {
 		}
 		_, err := strconv.ParseFloat(item.Price, 32)
 		if err != nil {
-			return false, itemnumber_str + " - Invalid Price Amount"
+			return false, itemnumber_str + " - Invalid Price Amount: " + item.Price
 		}
 	}
-	_, err := regexp.MatchString("^[0-9]{4}-(1[0-2]|0[1-9])-(3[01]|[12][0-9]|0[1-9])$", pReceipt.PurchaseDate)
-	if err != nil {
-		return false, "Invalid Purchase Date - Not In Expected Format YYYY-MM-DD"
+	datevalidate := regexp.MustCompile("^[0-9]{4}-(1[0-2]|0[1-9])-(3[01]|[12][0-9]|0[1-9])$")
+	if !datevalidate.MatchString(pReceipt.PurchaseDate) {
+		return false, "Invalid Purchase Date - Not In Expected Format YYYY-MM-DD: " + pReceipt.PurchaseDate
 	}
-	_, err = time.Parse("2022-01-22", pReceipt.PurchaseDate)
+	_, err := time.Parse("2006-01-02", pReceipt.PurchaseDate)
 	if err != nil {
-		return false, "Invalid Purchase Date"
+		return false, "Invalid Purchase Date: " + pReceipt.PurchaseDate
 	}
-
-	_, err = regexp.MatchString("^((0|1)[0-9]|2[0-3]|):((0|1|2|3|4|5)[0-9])$", pReceipt.PurchaseTime)
-	if err != nil {
-		return false, "Invalid Purchase Time - Not In Expected 24-hour Format HH:MI"
+	timevalidate := regexp.MustCompile("^(((0|1)[0-9])|(2[0-3])):((0|1|2|3|4|5)[0-9])$")
+	if !timevalidate.MatchString(pReceipt.PurchaseTime) {
+		return false, "Invalid Purchase Time - Not In Expected 24-hour Format HH:MI : " + pReceipt.PurchaseTime
 	}
 	_, err = strconv.ParseFloat(pReceipt.Total, 32)
 
